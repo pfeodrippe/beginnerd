@@ -22,6 +22,15 @@ import (
 	"github.com/spf13/cobra"
 	"io/ioutil"
 	"os"
+
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/firehose"
+	// "github.com/apex/go-apex"
+	// "github.com/apex/go-apex/kinesis"
+	// "github.com/aws/aws-sdk-go/aws"
+	// "github.com/aws/aws-sdk-go/aws/session"
+	// "github.com/aws/aws-sdk-go/service/firehose"
 )
 
 var fileName string
@@ -49,14 +58,40 @@ specified by the user.`,
 	},
 
 	Run: func(cmd *cobra.Command, args []string) {
+		sendToKinesis("GOGOGO ASDGJSDIGJSDgsdgasd09gsd09g8sd09gasudg90asdug90asigasdgASDGJSDIGJSDgsdgasd09gsd09g8sd09gasudg90asdug90asigasdgASDGJSDIGJSDgsdgasd09gsd09g8sd09gasudg90asdug90asigasdgASDGJSDIGJSDgsdgasd09gsd09g8sd09gasudg90asdug90asigasdgASDGJSDIGJSDgsdgasd09gsd09g8sd09gasudg90asdug90asigasdgASDGJSDIGJSDgsdgasd09gsd09g8sd09gasudg90asdug90asigasdgASDGJSDIGJSDgsdgasd09gsd09g8sd09gasudg90asdug90asigasdgASDGJSDIGJSDgsdgasd09gsd09g8sd09gasudg90asdug90asigasdgASDGJSDIGJSDgsdgasd09gsd09g8sd09gasudg90asdug90asigasdgASDGJSDIGJSDgsdgasd09gsd09g8sd09gasudg90asdug90asigasdgASDGJSDIGJSDgsdgasd09gsd09g8sd09gasudg90asdug90asigasdgASDGJSDIGJSDgsdgasd09gsd09g8sd09gasudg90asdug90asigasdgASDGJSDIGJSDgsdgasd09gsd09g8sd09gasudg90asdug90asigasdgASDGJSDIGJSDgsdgasd09gsd09g8sd09gasudg90asdug90asigasdgASDGJSDIGJSDgsdgasd09gsd09g8sd09gasudg90asdug90asigasdgASDGJSDIGJSDgsdgasd09gsd09g8sd09gasudg90asdug90asigasdgASDGJSDIGJSDgsdgasd09gsd09g8sd09gasudg90asdug90asigasdgASDGJSDIGJSDgsdgasd09gsd09g8sd09gasudg90asdug90asigasdgASDGJSDIGJSDgsdgasd09gsd09g8sd09gasudg90asdug90asigasdg")
+
+		// var ch = make(chan string, 1)
 		t, err := tail.TailFile(fileName, tail.Config{Follow: true, ReOpen: true, Poll: true})
 		if err != nil {
 			fmt.Println(err)
 		}
+		// go sendToKinesis(ch)
 		for line := range t.Lines {
 			fmt.Println(line.Text)
+			// ch <- line.Text
+		}
+
+		for {
 		}
 	},
+}
+
+// func sendToKinesis(ch chan string) {
+func sendToKinesis(str string) {
+	// for {
+	svc := firehose.New(session.New())
+	record := &firehose.Record{Data: []byte(str), '\n'}
+	_, err := svc.PutRecord(
+		&firehose.PutRecordInput{
+			DeliveryStreamName: aws.String("terraform-kinesis-firehose-test-stream"),
+			Record:             record,
+		},
+	)
+	if err != nil {
+		fmt.Println("ERRO:", err)
+		// return err
+	}
+	// }
 }
 
 func init() {
