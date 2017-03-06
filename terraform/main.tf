@@ -5,7 +5,7 @@ provider "aws" {
 }
 
 resource "aws_s3_bucket" "bucket" {
-  bucket = "tf-test-bucket"
+  bucket = "beginnerd-firehose-bucket"
   acl = "private"
 }
 
