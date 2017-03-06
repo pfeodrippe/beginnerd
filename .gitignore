@@ -1,2 +1,3 @@
 *.todo
 terraform/secret.tfvars
+terraform/.tfstate
