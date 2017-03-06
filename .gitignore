@@ -1,1 +1,2 @@
 *.todo
+terraform/secret.tfvars
