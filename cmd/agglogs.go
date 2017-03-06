@@ -24,7 +24,7 @@ import (
 	"os"
 )
 
-var dir string
+var fileName string
 
 func readDir(dirname string) []os.FileInfo {
 	files, err := ioutil.ReadDir(dirname)
@@ -40,31 +40,21 @@ var agglogsCmd = &cobra.Command{
 	Short: "Agg logs from a specified file to a s3 bucket",
 	Long: `Aggregate logs from a specified file to a s3 bucket
 specified by the user.`,
+
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
-		if dir == "" {
-			return errors.New("You must give a --path or -p indicating where is located the directory you want to watch")
+		if fileName == "" {
+			return errors.New("You must give a --file or -f")
 		}
 		return nil
 	},
 
 	Run: func(cmd *cobra.Command, args []string) {
-		if dir[len(dir)-1:] != "/" {
-			dir = dir + "/"
+		t, err := tail.TailFile(fileName, tail.Config{Follow: true, ReOpen: true, Poll: true})
+		if err != nil {
+			fmt.Println(err)
 		}
-		fmt.Printf("Waiting for files in %s...", dir)
-		for len(readDir(dir)) == 0 {
-		}
-		fmt.Printf("Logging!")
-		files, _ := ioutil.ReadDir(dir)
-		fmt.Println(files)
-		for _, f := range files {
-			t, err := tail.TailFile(dir+f.Name(), tail.Config{Follow: true, ReOpen: true, Poll: true})
-			if err != nil {
-				fmt.Println(err)
-			}
-			for line := range t.Lines {
-				fmt.Println(line.Text)
-			}
+		for line := range t.Lines {
+			fmt.Println(line.Text)
 		}
 	},
 }
@@ -77,5 +67,5 @@ func init() {
 	// Cobra supports Persistent Flags which will work for this command
 	// and all subcommands, e.g.
 	// agglogsCmd.PersistentFlags().String("foo", "", "A help for foo")
-	agglogsCmd.PersistentFlags().StringVarP(&dir, "path", "p", "", "path (directory) you want to watch")
+	agglogsCmd.PersistentFlags().StringVarP(&fileName, "file", "f", "", "path to file")
 }
