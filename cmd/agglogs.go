@@ -32,7 +32,7 @@ import (
 var fileName string
 
 const maxBatchSize int = 400
-const deliveryStreamName string = "terraform-kinesis-firehose-test-stream"
+const deliveryStreamName string = "beginnerd_firehose_stream"
 
 func readDir(dirname string) []os.FileInfo {
 	files, err := ioutil.ReadDir(dirname)

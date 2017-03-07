@@ -7,6 +7,7 @@ provider "aws" {
 resource "aws_s3_bucket" "bucket" {
   bucket = "beginnerd-firehose-bucket"
   acl = "private"
+  force_destroy = true
 }
 
 resource "aws_iam_role" "firehose_role" {
@@ -28,8 +29,25 @@ resource "aws_iam_role" "firehose_role" {
 EOF
 }
 
-resource "aws_kinesis_firehose_delivery_stream" "test_stream" {
-  name = "terraform-kinesis-firehose-test-stream"
+resource "aws_iam_role_policy" "s3_policy" {
+    name = "s3_policy"
+    role = "${aws_iam_role.firehose_role.id}"
+    policy = <<EOF
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": "s3:*",
+      "Resource": "*"
+    }
+  ]
+}
+EOF
+}
+
+resource "aws_kinesis_firehose_delivery_stream" "beginnerd_stream" {
+  name = "beginnerd_firehose_stream"
   destination = "s3"
   s3_configuration {
     role_arn = "${aws_iam_role.firehose_role.arn}"
