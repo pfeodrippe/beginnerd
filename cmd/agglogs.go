@@ -96,9 +96,14 @@ func processLogs(printlnChan, messages chan string) {
 
 	bucketCh := make(chan []byte)
 	go readFromBucket(db, "beginnerdBucket", "lastData", bucketCh)
-	// wait until it reads from bucket
-	lastDataBucketJson := <-bucketCh
-	lastRecordId := decodeJson(lastDataBucketJson)["id"].(float64)
+	lastDataBucketJson := <-bucketCh // wait until it reads from bucket
+	m, err := decodeJson(lastDataBucketJson)
+	var lastRecordId float64
+	if err == nil {
+		lastRecordId = m["id"].(float64)
+	} else {
+		lastRecordId = -1
+	}
 	printlnChan <- fmt.Sprintln("Last id was", lastRecordId)
 
 	svc := firehose.New(session.New())
@@ -108,7 +113,8 @@ func processLogs(printlnChan, messages chan string) {
 	for {
 		select {
 		case text := <-messages:
-			if decodeJson([]byte(text))["id"].(float64) > lastRecordId {
+			t, _ := decodeJson([]byte(text))
+			if t["id"].(float64) > lastRecordId {
 				records = append(
 					records,
 					&firehose.Record{Data: append([]byte(text), '\n')},
@@ -139,13 +145,10 @@ func processLogs(printlnChan, messages chan string) {
 
 }
 
-func decodeJson(data []byte) map[string]interface{} {
+func decodeJson(data []byte) (map[string]interface{}, error) {
 	var m map[string]interface{}
 	err := json.Unmarshal(data, &m)
-	if err != nil {
-		log.Fatal(err)
-	}
-	return m
+	return m, err
 }
 
 func saveToBucket(db *bolt.DB, bucket, key, value string) error {
