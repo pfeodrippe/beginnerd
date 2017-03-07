@@ -2,3 +2,4 @@
 terraform/secret.tfvars
 terraform/terraform.tfstate
 terraform/terraform.tfstate.backup
+beginnerd.db
