@@ -17,6 +17,7 @@ package cmd
 import (
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/hpcloud/tail"
 	"github.com/spf13/cobra"
@@ -31,6 +32,7 @@ import (
 var fileName string
 
 const maxBatchSize int = 400
+const deliveryStreamName string = "terraform-kinesis-firehose-test-stream"
 
 func readDir(dirname string) []os.FileInfo {
 	files, err := ioutil.ReadDir(dirname)
@@ -54,37 +56,63 @@ specified by the user.`,
 	},
 
 	Run: func(cmd *cobra.Command, args []string) {
-		records := make([]*firehose.Record, 0, maxBatchSize)
+		svc := firehose.New(session.New())
 		t, err := tail.TailFile(fileName, tail.Config{Follow: true, ReOpen: true, Poll: true})
 		if err != nil {
-			fmt.Println(err)
+			fmt.Println("TailFile error:", err)
 		}
 
-		for line := range t.Lines {
-			fmt.Println(line.Text)
-			records = append(
-				records,
-				&firehose.Record{Data: append([]byte(line.Text), '\n')},
-			)
-			if len(records) >= maxBatchSize {
-				_, err := sendToKinesis(records)
-				if err != nil {
-					fmt.Println("ERRO:", err)
-				} else {
-					fmt.Println("!!! sendToKinesis")
-					records = records[:0]
+		message := make(chan string)
+		messages := make(chan []*firehose.Record)
+
+		go func() {
+			arr := make([]*firehose.Record, 0, maxBatchSize)
+			for {
+				select {
+				case arr = <-messages:
+				case <-time.After(time.Second * 15):
+					if len(arr) > 0 {
+						message <- "15s timeout, sending remaining data"
+						sendToKinesis(svc, arr)
+						arr = arr[:0]
+					}
 				}
 			}
+		}()
+
+		go func() {
+			records := make([]*firehose.Record, 0, maxBatchSize)
+			for line := range t.Lines {
+				message <- line.Text
+				records = append(
+					records,
+					&firehose.Record{Data: append([]byte(line.Text), '\n')},
+				)
+				if len(records) >= maxBatchSize {
+					_, err := sendToKinesis(svc, records)
+					if err != nil {
+						fmt.Println("Firehose error:", err)
+					} else {
+						// remove records
+						records = records[:0]
+					}
+				} else {
+					messages <- records
+				}
+			}
+		}()
+
+		for {
+			fmt.Println(<-message)
 		}
 
 	},
 }
 
-func sendToKinesis(records []*firehose.Record) (*firehose.PutRecordBatchOutput, error) {
-	svc := firehose.New(session.New())
+func sendToKinesis(svc *firehose.Firehose, records []*firehose.Record) (*firehose.PutRecordBatchOutput, error) {
 	return svc.PutRecordBatch(
 		&firehose.PutRecordBatchInput{
-			DeliveryStreamName: aws.String("terraform-kinesis-firehose-test-stream"),
+			DeliveryStreamName: aws.String(deliveryStreamName),
 			Records:            records,
 		},
 	)
@@ -92,6 +120,5 @@ func sendToKinesis(records []*firehose.Record) (*firehose.PutRecordBatchOutput, 
 
 func init() {
 	RootCmd.AddCommand(agglogsCmd)
-
 	agglogsCmd.PersistentFlags().StringVarP(&fileName, "file", "f", "", "path to file")
 }
