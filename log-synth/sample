@@ -1,2 +1,4 @@
+#!/bin/sh
+
 java -cp ./log-synth.jar \
     com.mapr.synth.Synth -count 1M -schema schema.synth -output output -format JSON -threads 300
