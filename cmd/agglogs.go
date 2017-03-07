@@ -15,9 +15,9 @@
 package cmd
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
-	"json"
 	"log"
 	"time"
 
@@ -94,11 +94,12 @@ func processLogs(printlnChan, messages chan string) {
 		log.Fatal(err)
 	}
 
-	bucketCh := make(chan string)
+	bucketCh := make(chan []byte)
 	go readFromBucket(db, "beginnerdBucket", "lastData", bucketCh)
 	// wait until it reads from bucket
-	lastDataBucketValue := <-bucketCh
-	printlnChan <- fmt.Sprintln("Last data was", lastDataBucketValue)
+	lastDataBucketJson := <-bucketCh
+	lastRecordId := decodeJson(lastDataBucketJson)["id"].(float64)
+	printlnChan <- fmt.Sprintln("Last id was", lastRecordId)
 
 	svc := firehose.New(session.New())
 	records := make([]*firehose.Record, 0, maxBatchSize)
@@ -107,10 +108,14 @@ func processLogs(printlnChan, messages chan string) {
 	for {
 		select {
 		case text := <-messages:
-			records = append(
-				records,
-				&firehose.Record{Data: append([]byte(text), '\n')},
-			)
+			if decodeJson([]byte(text))["id"].(float64) > lastRecordId {
+				records = append(
+					records,
+					&firehose.Record{Data: append([]byte(text), '\n')},
+				)
+			} else {
+				printlnChan <- fmt.Sprintln("Skipping", text)
+			}
 		case <-time.After(time.Second * 3):
 			timeoutFlag = len(records) > 0
 		}
@@ -134,6 +139,15 @@ func processLogs(printlnChan, messages chan string) {
 
 }
 
+func decodeJson(data []byte) map[string]interface{} {
+	var m map[string]interface{}
+	err := json.Unmarshal(data, &m)
+	if err != nil {
+		log.Fatal(err)
+	}
+	return m
+}
+
 func saveToBucket(db *bolt.DB, bucket, key, value string) error {
 	return db.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(bucket))
@@ -142,12 +156,12 @@ func saveToBucket(db *bolt.DB, bucket, key, value string) error {
 	})
 }
 
-func readFromBucket(db *bolt.DB, bucket, key string, ch chan string) string {
+func readFromBucket(db *bolt.DB, bucket, key string, ch chan []byte) string {
 	value := ""
 	db.View(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(bucket))
 		v := b.Get([]byte(key))
-		ch <- string(v)
+		ch <- v
 		value = string(v)
 		return nil
 	})
