@@ -56,57 +56,57 @@ specified by the user.`,
 	},
 
 	Run: func(cmd *cobra.Command, args []string) {
-		svc := firehose.New(session.New())
 		t, err := tail.TailFile(fileName, tail.Config{Follow: true, ReOpen: true, Poll: true})
 		if err != nil {
 			fmt.Println("TailFile error:", err)
 		}
 
-		message := make(chan string)
-		messages := make(chan []*firehose.Record)
+		printlnChan := make(chan string)
+		messages := make(chan string)
 
+		go sendLogs(printlnChan, messages)
 		go func() {
-			arr := make([]*firehose.Record, 0, maxBatchSize)
-			for {
-				select {
-				case arr = <-messages:
-				case <-time.After(time.Second * 15):
-					if len(arr) > 0 {
-						message <- "15s timeout, sending remaining data"
-						sendToKinesis(svc, arr)
-						arr = arr[:0]
-					}
-				}
-			}
-		}()
-
-		go func() {
-			records := make([]*firehose.Record, 0, maxBatchSize)
 			for line := range t.Lines {
-				message <- line.Text
-				records = append(
-					records,
-					&firehose.Record{Data: append([]byte(line.Text), '\n')},
-				)
-				if len(records) >= maxBatchSize {
-					_, err := sendToKinesis(svc, records)
-					if err != nil {
-						fmt.Println("Firehose error:", err)
-					} else {
-						// remove records
-						records = records[:0]
-					}
-				} else {
-					messages <- records
-				}
+				printlnChan <- line.Text
+				messages <- line.Text
 			}
 		}()
 
 		for {
-			fmt.Println(<-message)
+			fmt.Println(<-printlnChan)
 		}
 
 	},
+}
+
+func sendLogs(printlnChan, messages chan string) {
+	svc := firehose.New(session.New())
+	records := make([]*firehose.Record, 0, maxBatchSize)
+	timeoutFlag := false
+	for {
+		select {
+		case text := <-messages:
+			records = append(
+				records,
+				&firehose.Record{Data: append([]byte(text), '\n')},
+			)
+		case <-time.After(time.Second * 15):
+			timeoutFlag = len(records) > 0
+		}
+
+		if len(records) >= maxBatchSize || timeoutFlag {
+			_, err := sendToKinesis(svc, records)
+			if err != nil {
+				fmt.Println("Firehose error:", err)
+			} else {
+				records = records[:0]
+			}
+		}
+		if timeoutFlag {
+			printlnChan <- "15s timeout, remaining data sent"
+			timeoutFlag = false
+		}
+	}
 }
 
 func sendToKinesis(svc *firehose.Firehose, records []*firehose.Record) (*firehose.PutRecordBatchOutput, error) {
