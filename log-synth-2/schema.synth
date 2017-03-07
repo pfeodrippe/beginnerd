@@ -1,0 +1,5 @@
+[
+   {"name":"id", "class":"id"},
+   {"name":"user_id", "class": "foreign-key", "size": 10000},
+   {"name":"item_id", "class": "foreign-key", "size": 2000}
+]
