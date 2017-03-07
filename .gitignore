@@ -4,3 +4,4 @@ terraform/terraform.tfstate
 terraform/terraform.tfstate.backup
 beginnerd.db
 log-synth/output/*
+log-synth/side-log
