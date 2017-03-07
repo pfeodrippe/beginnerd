@@ -26,14 +26,11 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/firehose"
-	// "github.com/apex/go-apex"
-	// "github.com/apex/go-apex/kinesis"
-	// "github.com/aws/aws-sdk-go/aws"
-	// "github.com/aws/aws-sdk-go/aws/session"
-	// "github.com/aws/aws-sdk-go/service/firehose"
 )
 
 var fileName string
+
+const maxBatchSize int = 400
 
 func readDir(dirname string) []os.FileInfo {
 	files, err := ioutil.ReadDir(dirname)
@@ -43,7 +40,6 @@ func readDir(dirname string) []os.FileInfo {
 	return files
 }
 
-// agglogsCmd represents the agglogs command
 var agglogsCmd = &cobra.Command{
 	Use:   "agglogs",
 	Short: "Agg logs from a specified file to a s3 bucket",
@@ -58,49 +54,44 @@ specified by the user.`,
 	},
 
 	Run: func(cmd *cobra.Command, args []string) {
-		sendToKinesis("GOGOGO ASDGJSDIGJSDgsdgasd09gsd09g8sd09gasudg90asdug90asigasdgASDGJSDIGJSDgsdgasd09gsd09g8sd09gasudg90asdug90asigasdgASDGJSDIGJSDgsdgasd09gsd09g8sd09gasudg90asdug90asigasdgASDGJSDIGJSDgsdgasd09gsd09g8sd09gasudg90asdug90asigasdgASDGJSDIGJSDgsdgasd09gsd09g8sd09gasudg90asdug90asigasdgASDGJSDIGJSDgsdgasd09gsd09g8sd09gasudg90asdug90asigasdgASDGJSDIGJSDgsdgasd09gsd09g8sd09gasudg90asdug90asigasdgASDGJSDIGJSDgsdgasd09gsd09g8sd09gasudg90asdug90asigasdgASDGJSDIGJSDgsdgasd09gsd09g8sd09gasudg90asdug90asigasdgASDGJSDIGJSDgsdgasd09gsd09g8sd09gasudg90asdug90asigasdgASDGJSDIGJSDgsdgasd09gsd09g8sd09gasudg90asdug90asigasdgASDGJSDIGJSDgsdgasd09gsd09g8sd09gasudg90asdug90asigasdgASDGJSDIGJSDgsdgasd09gsd09g8sd09gasudg90asdug90asigasdgASDGJSDIGJSDgsdgasd09gsd09g8sd09gasudg90asdug90asigasdgASDGJSDIGJSDgsdgasd09gsd09g8sd09gasudg90asdug90asigasdgASDGJSDIGJSDgsdgasd09gsd09g8sd09gasudg90asdug90asigasdgASDGJSDIGJSDgsdgasd09gsd09g8sd09gasudg90asdug90asigasdgASDGJSDIGJSDgsdgasd09gsd09g8sd09gasudg90asdug90asigasdgASDGJSDIGJSDgsdgasd09gsd09g8sd09gasudg90asdug90asigasdg")
-
-		// var ch = make(chan string, 1)
+		records := make([]*firehose.Record, 0, maxBatchSize)
 		t, err := tail.TailFile(fileName, tail.Config{Follow: true, ReOpen: true, Poll: true})
 		if err != nil {
 			fmt.Println(err)
 		}
-		// go sendToKinesis(ch)
+
 		for line := range t.Lines {
 			fmt.Println(line.Text)
-			// ch <- line.Text
+			records = append(
+				records,
+				&firehose.Record{Data: append([]byte(line.Text), '\n')},
+			)
+			if len(records) >= maxBatchSize {
+				_, err := sendToKinesis(records)
+				if err != nil {
+					fmt.Println("ERRO:", err)
+				} else {
+					fmt.Println("!!! sendToKinesis")
+					records = records[:0]
+				}
+			}
 		}
 
-		for {
-		}
 	},
 }
 
-// func sendToKinesis(ch chan string) {
-func sendToKinesis(str string) {
-	// for {
+func sendToKinesis(records []*firehose.Record) (*firehose.PutRecordBatchOutput, error) {
 	svc := firehose.New(session.New())
-	record := &firehose.Record{Data: []byte(str), '\n'}
-	_, err := svc.PutRecord(
-		&firehose.PutRecordInput{
+	return svc.PutRecordBatch(
+		&firehose.PutRecordBatchInput{
 			DeliveryStreamName: aws.String("terraform-kinesis-firehose-test-stream"),
-			Record:             record,
+			Records:            records,
 		},
 	)
-	if err != nil {
-		fmt.Println("ERRO:", err)
-		// return err
-	}
-	// }
 }
 
 func init() {
 	RootCmd.AddCommand(agglogsCmd)
 
-	// Here you will define your flags and configuration settings.
-
-	// Cobra supports Persistent Flags which will work for this command
-	// and all subcommands, e.g.
-	// agglogsCmd.PersistentFlags().String("foo", "", "A help for foo")
 	agglogsCmd.PersistentFlags().StringVarP(&fileName, "file", "f", "", "path to file")
 }
