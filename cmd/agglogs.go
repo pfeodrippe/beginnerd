@@ -62,7 +62,7 @@ specified by the user.`,
 		}
 
 		printlnChan := make(chan string)
-		messages := make(chan string)
+		messages := make(chan string, 10000)
 
 		go sendLogs(printlnChan, messages)
 		go func() {
@@ -90,7 +90,7 @@ func sendLogs(printlnChan, messages chan string) {
 				records,
 				&firehose.Record{Data: append([]byte(text), '\n')},
 			)
-		case <-time.After(time.Second * 15):
+		case <-time.After(time.Second * 3):
 			timeoutFlag = len(records) > 0
 		}
 
@@ -99,11 +99,12 @@ func sendLogs(printlnChan, messages chan string) {
 			if err != nil {
 				fmt.Println("Firehose error:", err)
 			} else {
+				printlnChan <- string(records[len(records)-1].Data)
 				records = records[:0]
 			}
 		}
 		if timeoutFlag {
-			printlnChan <- "15s timeout, remaining data sent"
+			printlnChan <- "3s timeout, remaining data sent"
 			timeoutFlag = false
 		}
 	}
