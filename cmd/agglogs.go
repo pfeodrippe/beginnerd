@@ -17,8 +17,11 @@ package cmd
 import (
 	"errors"
 	"fmt"
+	"json"
+	"log"
 	"time"
 
+	"github.com/boltdb/bolt"
 	"github.com/hpcloud/tail"
 	"github.com/spf13/cobra"
 	"io/ioutil"
@@ -61,10 +64,10 @@ specified by the user.`,
 			fmt.Println("TailFile error:", err)
 		}
 
-		printlnChan := make(chan string)
+		printlnChan := make(chan string, 10)
 		messages := make(chan string, 10000)
 
-		go sendLogs(printlnChan, messages)
+		go processLogs(printlnChan, messages)
 		go func() {
 			for line := range t.Lines {
 				printlnChan <- line.Text
@@ -79,10 +82,28 @@ specified by the user.`,
 	},
 }
 
-func sendLogs(printlnChan, messages chan string) {
+func processLogs(printlnChan, messages chan string) {
+	db, err := bolt.Open("beginnerd.db", 0600, nil)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer db.Close()
+
+	err = createBucket(db, "beginnerdBucket")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	bucketCh := make(chan string)
+	go readFromBucket(db, "beginnerdBucket", "lastData", bucketCh)
+	// wait until it reads from bucket
+	lastDataBucketValue := <-bucketCh
+	printlnChan <- fmt.Sprintln("Last data was", lastDataBucketValue)
+
 	svc := firehose.New(session.New())
 	records := make([]*firehose.Record, 0, maxBatchSize)
 	timeoutFlag := false
+
 	for {
 		select {
 		case text := <-messages:
@@ -99,7 +120,9 @@ func sendLogs(printlnChan, messages chan string) {
 			if err != nil {
 				fmt.Println("Firehose error:", err)
 			} else {
-				printlnChan <- string(records[len(records)-1].Data)
+				lastData := string(records[len(records)-1].Data)
+				saveToBucket(db, "beginnerdBucket", "lastData", lastData)
+				printlnChan <- "Sent (last): " + lastData
 				records = records[:0]
 			}
 		}
@@ -108,6 +131,37 @@ func sendLogs(printlnChan, messages chan string) {
 			timeoutFlag = false
 		}
 	}
+
+}
+
+func saveToBucket(db *bolt.DB, bucket, key, value string) error {
+	return db.Update(func(tx *bolt.Tx) error {
+		b := tx.Bucket([]byte(bucket))
+		err := b.Put([]byte(key), []byte(value))
+		return err
+	})
+}
+
+func readFromBucket(db *bolt.DB, bucket, key string, ch chan string) string {
+	value := ""
+	db.View(func(tx *bolt.Tx) error {
+		b := tx.Bucket([]byte(bucket))
+		v := b.Get([]byte(key))
+		ch <- string(v)
+		value = string(v)
+		return nil
+	})
+	return value
+}
+
+func createBucket(db *bolt.DB, bucket string) error {
+	return db.Update(func(tx *bolt.Tx) error {
+		_, err := tx.CreateBucketIfNotExists([]byte(bucket))
+		if err != nil {
+			return fmt.Errorf("create bucket: %s", err)
+		}
+		return nil
+	})
 }
 
 func sendToKinesis(svc *firehose.Firehose, records []*firehose.Record) (*firehose.PutRecordBatchOutput, error) {
