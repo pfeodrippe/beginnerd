@@ -119,6 +119,7 @@ func processLogs(printlnChan, messages chan string) {
 					records,
 					&firehose.Record{Data: append([]byte(text), '\n')},
 				)
+				printlnChan <- fmt.Sprintln("NOT Skipping", text)
 			} else {
 				printlnChan <- fmt.Sprintln("Skipping", text)
 			}
@@ -159,7 +160,7 @@ func saveToBucket(db *bolt.DB, bucket, key, value string) error {
 	})
 }
 
-func readFromBucket(db *bolt.DB, bucket, key string, ch chan []byte) string {
+func readFromBucket(db *bolt.DB, bucket, key string, ch chan []byte) {
 	db.View(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(bucket))
 		v := b.Get([]byte(key))
