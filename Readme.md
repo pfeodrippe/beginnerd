@@ -9,6 +9,7 @@ export AWS_SECRET_ACCESS_KEY=YOUR_SECRET_KEY
 
 Execute
 ```
+# Make sure your $GOPATH is set
 git clone https://github.com/pfeodrippe/beginnerd.git $GOPATH/src/github.com/pfeodrippe/beginnerd
 # or (not tested) go get github.com/pfeodrippe/beginnerd
 cd $GOPATH/src/github.com/pfeodrippe/beginnerd
