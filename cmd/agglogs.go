@@ -58,7 +58,7 @@ specified by the user.`,
 			return errors.New("You must give a --file or -f")
 		}
 		if deleteDBFile {
-			fmt.Println("Deleting beginnerd.db file...")
+			fmt.Println("Removing beginnerd.db file...")
 			os.Remove("./beginnerd.db")
 		}
 		return nil
@@ -70,10 +70,14 @@ specified by the user.`,
 			fmt.Println("TailFile error:", err)
 		}
 
+		// print to stdout from the goroutine
 		printlnChan := make(chan string, 10)
+		// lines from tailed file
 		messages := make(chan string, 10000)
 
 		go processLogs(printlnChan, messages)
+
+		// tail file
 		go func() {
 			for line := range t.Lines {
 				printlnChan <- line.Text
@@ -81,6 +85,7 @@ specified by the user.`,
 			}
 		}()
 
+		// infinite loop to show
 		for {
 			fmt.Println(<-printlnChan)
 			if willPrintBufferSize {
@@ -91,6 +96,9 @@ specified by the user.`,
 	},
 }
 
+// receive the lines from the file tailed in a channel
+// and send them to the firehose stream.
+// save to the local db to keep track of the last sent line.
 func processLogs(printlnChan, messages chan string) {
 	db, err := bolt.Open("beginnerd.db", 0600, nil)
 	if err != nil {
@@ -115,15 +123,18 @@ func processLogs(printlnChan, messages chan string) {
 	}
 	printlnChan <- fmt.Sprintln("Last id was", lastRecordId)
 
+	// initiate a session with aws
 	svc := firehose.New(session.New())
+	// buffer the records from the channel
 	records := make([]*firehose.Record, 0, maxBatchSize)
+	// notify about timeout
 	timeoutFlag := false
 
 	for {
 		select {
 		case text := <-messages:
 			t, _ := decodeJson([]byte(text))
-			if t["id"].(float64) > lastRecordId {
+			if t["id"].(float64) > lastRecordId { // if actual id is bigger than the last record stored at local db
 				records = append(
 					records,
 					&firehose.Record{Data: append([]byte(text), '\n')},
@@ -155,12 +166,14 @@ func processLogs(printlnChan, messages chan string) {
 
 }
 
+// Helper functions
 func decodeJson(data []byte) (map[string]interface{}, error) {
 	var m map[string]interface{}
 	err := json.Unmarshal(data, &m)
 	return m, err
 }
 
+// nothing special here
 func saveToBucket(db *bolt.DB, bucket, key, value string) error {
 	return db.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(bucket))
@@ -169,6 +182,7 @@ func saveToBucket(db *bolt.DB, bucket, key, value string) error {
 	})
 }
 
+// read through a channel
 func readFromBucket(db *bolt.DB, bucket, key string, ch chan []byte) {
 	db.View(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(bucket))
@@ -178,6 +192,7 @@ func readFromBucket(db *bolt.DB, bucket, key string, ch chan []byte) {
 	})
 }
 
+// create bucket if it doesn't exist
 func createBucket(db *bolt.DB, bucket string) error {
 	return db.Update(func(tx *bolt.Tx) error {
 		_, err := tx.CreateBucketIfNotExists([]byte(bucket))
@@ -188,6 +203,7 @@ func createBucket(db *bolt.DB, bucket string) error {
 	})
 }
 
+// use kinesis firehose to send the records
 func sendToKinesis(svc *firehose.Firehose, records []*firehose.Record) (*firehose.PutRecordBatchOutput, error) {
 	return svc.PutRecordBatch(
 		&firehose.PutRecordBatchInput{
@@ -197,6 +213,7 @@ func sendToKinesis(svc *firehose.Firehose, records []*firehose.Record) (*firehos
 	)
 }
 
+// config the cmd
 func init() {
 	RootCmd.AddCommand(agglogsCmd)
 
