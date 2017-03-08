@@ -33,6 +33,8 @@ import (
 )
 
 var fileName string
+var deleteDBFile bool
+var willPrintBufferSize bool
 
 const maxBatchSize int = 400
 const deliveryStreamName string = "beginnerd_firehose_stream"
@@ -54,6 +56,10 @@ specified by the user.`,
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 		if fileName == "" {
 			return errors.New("You must give a --file or -f")
+		}
+		if deleteDBFile {
+			fmt.Println("Deleting beginnerd.db file...")
+			os.Remove("./beginnerd.db")
 		}
 		return nil
 	},
@@ -77,6 +83,9 @@ specified by the user.`,
 
 		for {
 			fmt.Println(<-printlnChan)
+			if willPrintBufferSize {
+				fmt.Println("Buffer size:", len(messages))
+			}
 		}
 
 	},
@@ -190,5 +199,8 @@ func sendToKinesis(svc *firehose.Firehose, records []*firehose.Record) (*firehos
 
 func init() {
 	RootCmd.AddCommand(agglogsCmd)
+
 	agglogsCmd.PersistentFlags().StringVarP(&fileName, "file", "f", "", "path to file")
+	agglogsCmd.PersistentFlags().BoolVarP(&deleteDBFile, "delete", "d", false, "if set, delete the DB file")
+	agglogsCmd.PersistentFlags().BoolVarP(&willPrintBufferSize, "showbuffer", "b", false, "if set, track buffer size")
 }
