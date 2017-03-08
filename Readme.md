@@ -9,13 +9,14 @@ export AWS_SECRET_ACCESS_KEY=YOUR_SECRET_KEY
 
 Execute
 ```
-git clone https://github.com/pfeodrippe/beginnerd.git
+git clone https://github.com/pfeodrippe/beginnerd.git $GOPATH/src/github.com/pfeodrippe/beginnerd
 # or (not tested) go get github.com/pfeodrippe/beginnerd
-cd beginnerd
+cd $GOPATH/src/github.com/pfeodrippe/beginnerd
 go get
+go build
 go install
 ```
-You'll have a new command: ```beginnerd``` =D, see ```beginnerd --help```.
+You'll have a new command: ```beginnerd``` or ```./beginnerd``` =D, see more at ```beginnerd --help```.
 
 See the ```terraform/Readme.md``` and ```log-synth/Readme.md``` files for more instructions and execute below to send the logs to Kinesis Firehose.
 
