@@ -17,7 +17,7 @@ go install
 ```
 You'll have a new command: ```beginnerd``` =D, see ```beginnerd --help```.
 
-See the ```terraform/Readme.md``` and ```log-synth/Readme.md``` files for more instructions.
+See the ```terraform/Readme.md``` and ```log-synth/Readme.md``` files for more instructions and execute below to send the logs to Kinesis Firehose.
 
 After you follow and execute the log-synth and terraform instructions, execute 
 ```
