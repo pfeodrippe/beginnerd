@@ -12,7 +12,11 @@ Execute
 go get
 go install
 ```
-You'll have a new command: beginnerd.
-
+You'll have a new command: ```beginnerd``` =D, see ```beginner --help```.
 
 See the ```terraform/Readme.md``` and ```log-synth/Readme.md``` files for more instructions.
+
+After you follow and execute the log-synth and terraform instructions, execute 
+```
+beginnerd agglogs -f log-synth/output/synth-0000..json
+```
