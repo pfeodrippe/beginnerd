@@ -160,15 +160,12 @@ func saveToBucket(db *bolt.DB, bucket, key, value string) error {
 }
 
 func readFromBucket(db *bolt.DB, bucket, key string, ch chan []byte) string {
-	value := ""
 	db.View(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(bucket))
 		v := b.Get([]byte(key))
 		ch <- v
-		value = string(v)
 		return nil
 	})
-	return value
 }
 
 func createBucket(db *bolt.DB, bucket string) error {
