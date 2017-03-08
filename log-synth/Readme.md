@@ -1,0 +1,1 @@
+Simulates logs by executing ```./sample``` at this folder

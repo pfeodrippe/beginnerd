@@ -19,6 +19,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"strconv"
 	"time"
 
 	"github.com/boltdb/bolt"
@@ -113,11 +114,11 @@ func processLogs(printlnChan, messages chan string) {
 
 	bucketCh := make(chan []byte)
 	go readFromBucket(db, "beginnerdBucket", "lastData", bucketCh)
-	lastDataBucketJson := <-bucketCh // wait until it reads from bucket
-	m, err := decodeJson(lastDataBucketJson)
+	lastIdAtBucket := <-bucketCh // wait until it reads from bucket
 	var lastRecordId float64
-	if err == nil {
-		lastRecordId = m["id"].(float64)
+	if lastIdAtBucket != nil {
+		value, _ := strconv.ParseFloat(string(lastIdAtBucket), 64)
+		lastRecordId = value
 	} else {
 		lastRecordId = -1
 	}
@@ -129,17 +130,19 @@ func processLogs(printlnChan, messages chan string) {
 	records := make([]*firehose.Record, 0, maxBatchSize)
 	// notify about timeout
 	timeoutFlag := false
+	biggestId := lastRecordId
 
 	for {
 		select {
 		case text := <-messages:
 			t, _ := decodeJson([]byte(text))
-			if t["id"].(float64) > lastRecordId { // if actual id is bigger than the last record stored at local db
+			actId := t["id"].(float64)
+			if actId > biggestId { // if actual id is bigger than the last record stored at local db
 				records = append(
 					records,
 					&firehose.Record{Data: append([]byte(text), '\n')},
 				)
-				printlnChan <- fmt.Sprintln("NOT Skipping", text)
+				biggestId = actId
 			} else {
 				printlnChan <- fmt.Sprintln("Skipping", text)
 			}
@@ -152,9 +155,9 @@ func processLogs(printlnChan, messages chan string) {
 			if err != nil {
 				fmt.Println("Firehose error:", err)
 			} else {
-				lastData := string(records[len(records)-1].Data)
-				saveToBucket(db, "beginnerdBucket", "lastData", lastData)
-				printlnChan <- "Sent (last): " + lastData
+				biggestIdStr := strconv.FormatFloat(biggestId, 'f', 0, 64)
+				saveToBucket(db, "beginnerdBucket", "lastData", biggestIdStr)
+				printlnChan <- "Biggest Id (last): " + biggestIdStr
 				records = records[:0]
 			}
 		}
