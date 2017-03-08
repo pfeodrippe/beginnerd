@@ -9,10 +9,13 @@ export AWS_SECRET_ACCESS_KEY=YOUR_SECRET_KEY
 
 Execute
 ```
+git clone https://github.com/pfeodrippe/beginnerd.git
+# or (not tested) go get github.com/spf13/cobra
+cd beginnerd
 go get
 go install
 ```
-You'll have a new command: ```beginnerd``` =D, see ```beginner --help```.
+You'll have a new command: ```beginnerd``` =D, see ```beginnerd --help```.
 
 See the ```terraform/Readme.md``` and ```log-synth/Readme.md``` files for more instructions.
 
